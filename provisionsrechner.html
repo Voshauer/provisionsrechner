@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Provisionsrechner</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0e0c;
+    --surface: #1a1915;
+    --surface2: #242320;
+    --surface3: #2e2d29;
+    --border: #38362f;
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --gold-dim: rgba(201,168,76,0.15);
+    --text: #f0ead8;
+    --text-dim: #8a8470;
+    --text-muted: #5a5648;
+    --green: #6dbf8b;
+    --green-dim: rgba(109,191,139,0.12);
+    --blue: #7ab4d4;
+    --blue-dim: rgba(122,180,212,0.12);
+    --red: #e07070;
+    --red-dim: rgba(224,112,112,0.12);
+    --purple: #b58ad4;
+    --purple-dim: rgba(181,138,212,0.12);
+    --radius: 12px;
+    --radius-lg: 20px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0; opacity: 0.4;
+  }
+  .app {
+    position: relative; z-index: 1;
+    max-width: 860px; margin: 0 auto;
+    padding: 24px 16px 80px;
+  }
+  header { text-align: center; padding: 36px 0 32px; }
+  header::after {
+    content: ''; display: block; width: 50px; height: 1px;
+    background: var(--gold); margin: 18px auto 0; opacity: 0.5;
+  }
+  .header-label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 8px;
+  }
+  h1 { font-family: 'DM Serif Display', serif; font-size: clamp(1.8rem,5vw,2.8rem); font-weight: 400; color: var(--text); line-height: 1.1; }
+  h1 em { font-style: italic; color: var(--gold-light); }
+
+  /* TABS */
+  .tabs { display:flex; gap:4px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:4px; margin-bottom:20px; }
+  .tab { flex:1; padding:10px 6px; background:transparent; border:none; border-radius:8px; color:var(--text-dim); font-family:'DM Sans',sans-serif; font-size:12px; font-weight:500; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
+  .tab.active { background:var(--surface3); color:var(--gold-light); box-shadow:0 1px 3px rgba(0,0,0,0.4); }
+  .tab:hover:not(.active) { color:var(--text); background:var(--surface2); }
+  .panel { display:none; }
+  .panel.active { display:block; animation:fadeIn 0.2s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+  /* CARDS */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:22px; margin-bottom:14px; }
+  .card-title { font-family:'DM Serif Display',serif; font-size:1.05rem; color:var(--text); margin-bottom:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .card-title .icon { width:30px;height:30px;background:var(--gold-dim);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0; }
+
+  /* FIELDS */
+  .field-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media(max-width:500px){ .field-grid{grid-template-columns:1fr} .field-grid.two{grid-template-columns:1fr 1fr} }
+  .field { display:flex; flex-direction:column; gap:5px; }
+  .field.full { grid-column:1/-1; }
+  label { font-size:10px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); font-family:'DM Mono',monospace; }
+  .input-wrap { position:relative; display:flex; align-items:center; }
+  .input-wrap .unit { position:absolute;right:12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);pointer-events:none; }
+  input[type="number"],input[type="text"],select {
+    width:100%; padding:11px 14px;
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:var(--radius); color:var(--text);
+    font-family:'DM Mono',monospace; font-size:14px;
+    transition:border-color 0.2s,background 0.2s;
+    -webkit-appearance:none; appearance:none;
+  }
+  input.has-unit { padding-right:38px; }
+  input:focus,select:focus { outline:none; border-color:var(--gold); background:var(--surface3); }
+  input::placeholder { color:var(--text-muted); }
+  input[readonly] { background:var(--surface3); color:var(--gold-light); cursor:default; }
+  select { cursor:pointer; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a8470' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:34px; }
+
+  /* ZAHLUNGSWEISE BUTTONS */
+  .zw-group { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  @media(max-width:420px){ .zw-group{grid-template-columns:repeat(2,1fr)} }
+  .zw-btn {
+    padding:9px 4px; background:var(--surface2); border:1px solid var(--border);
+    border-radius:var(--radius); color:var(--text-dim); font-family:'DM Sans',sans-serif;
+    font-size:11px; font-weight:500; cursor:pointer; transition:all 0.2s;
+    text-align:center; line-height:1.3;
+  }
+  .zw-btn.active { background:var(--surface3); border-color:var(--gold); color:var(--gold-light); }
+  .zw-btn:hover:not(.active) { border-color:var(--text-muted); color:var(--text); }
+  .zw-btn .zw-factor { display:block; font-family:'DM Mono',monospace; font-size:10px; color:var(--text-muted); margin-top:2px; }
+  .zw-btn.active .zw-factor { color:var(--gold); }
+
+  /* INFO BOX */
+  .info-box { background:var(--blue-dim); border:1px solid rgba(122,180,212,0.2); border-radius:var(--radius); padding:11px 13px; font-size:12px; color:var(--blue); font-family:'DM Mono',monospace; line-height:1.7; margin-top:12px; }
+  .info-box strong { color:var(--gold-light); }
+
+  /* LV HINT */
+  .lv-hint { font-family:'DM Mono',monospace; font-size:11px; color:var(--gold); margin-top:5px; padding:6px 10px; background:var(--gold-dim); border-radius:6px; display:none; }
+  .lv-hint.show { display:block; }
+
+  /* RESULT GRID */
+  .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+  @media(max-width:400px){ .result-grid{grid-template-columns:1fr} }
+  .result-cell {
+    background:var(--gold-dim); border:1px solid rgba(201,168,76,0.22);
+    border-radius:var(--radius-lg); padding:18px;
+    position:relative; overflow:hidden;
+  }
+  .result-cell::before { content:''; position:absolute; top:-30px;right:-30px; width:80px;height:80px; background:radial-gradient(circle,rgba(201,168,76,0.1),transparent 70%); pointer-events:none; }
+  .result-cell.green-cell { background:var(--green-dim); border-color:rgba(109,191,139,0.22); }
+  .result-cell.green-cell::before { background:radial-gradient(circle,rgba(109,191,139,0.1),transparent 70%); }
+  .result-cell.purple-cell { background:var(--purple-dim); border-color:rgba(181,138,212,0.22); }
+  .result-cell.purple-cell::before { background:radial-gradient(circle,rgba(181,138,212,0.1),transparent 70%); }
+  .rc-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:5px; }
+  .rc-val { font-family:'DM Serif Display',serif; font-size:clamp(1.4rem,5vw,2rem); color:var(--gold-light); line-height:1; }
+  .result-cell.green-cell .rc-val { color:var(--green); }
+  .result-cell.purple-cell .rc-val { color:var(--purple); }
+  .rc-sub { font-family:'DM Mono',monospace; font-size:10px; color:var(--text-muted); margin-top:4px; }
+
+  /* BREAKDOWN */
+  .card-breakdown .breakdown-row {
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04);
+    font-size:13px; gap:10px;
+  }
+  .card-breakdown .breakdown-row:last-child { border-bottom:none; }
+  .card-breakdown .breakdown-row .key { color:var(--text-dim); flex:1; }
+  .card-breakdown .breakdown-row .val { font-family:'DM Mono',monospace; font-weight:500; color:var(--text); white-space:nowrap; }
+  .card-breakdown .breakdown-row.hl .val { color:var(--gold-light); font-size:14px; font-weight:700; }
+  .card-breakdown .breakdown-row.hl .key { color:var(--text); font-weight:600; }
+  .card-breakdown .breakdown-row.hl2 .val { color:var(--green); }
+  .card-breakdown .breakdown-row.hl2 .key { color:var(--text); }
+  .card-breakdown .breakdown-row.hl3 .val { color:var(--purple); }
+  .card-breakdown .breakdown-row.hl3 .key { color:var(--text); font-weight:600; }
+  .card-breakdown .breakdown-row.warn .key { color:var(--red); }
+
+  /* 10-YEAR TABLE */
+  .year-table { width:100%; border-collapse:collapse; margin-top:4px; font-size:12px; }
+  .year-table th { text-align:left; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); padding:7px 10px; border-bottom:1px solid var(--border); }
+  .year-table td { padding:8px 10px; font-family:'DM Mono',monospace; color:var(--text); border-bottom:1px solid rgba(255,255,255,0.04); }
+  .year-table tr:last-child td { border-bottom:none; }
+  .year-table td.money { color:var(--gold-light); }
+  .year-table td.money-green { color:var(--green); }
+  .year-table td.money-purple { color:var(--purple); font-weight:700; }
+  .year-table tr.year-total { background:var(--gold-dim); }
+  .year-table tr.year-total td { color:var(--gold-light); font-weight:600; border-bottom:none; }
+
+  /* SPARTE BADGES */
+  .sparte-badge { display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-family:'DM Mono',monospace;font-size:10px;border:1px solid;margin-left:auto; }
+  .badge-lv     { background:rgba(201,168,76,0.1);  border-color:rgba(201,168,76,0.3);  color:var(--gold-light); }
+  .badge-unfall { background:rgba(224,112,112,0.1); border-color:rgba(224,112,112,0.3); color:var(--red); }
+  .badge-elem   { background:rgba(109,191,139,0.1); border-color:rgba(109,191,139,0.3); color:var(--green); }
+  .badge-kasko  { background:rgba(122,180,212,0.1); border-color:rgba(122,180,212,0.3); color:var(--blue); }
+  .badge-hpf    { background:rgba(180,140,220,0.1); border-color:rgba(180,140,220,0.3); color:#c49ade; }
+  .badge-kranken{ background:rgba(255,200,100,0.1); border-color:rgba(255,200,100,0.3); color:#f0c96a; }
+
+  /* BUTTONS */
+  .btn { padding:12px 22px; border-radius:var(--radius); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; border:none; transition:all 0.2s; letter-spacing:0.3px; }
+  .btn-gold { background:var(--gold); color:var(--bg); }
+  .btn-gold:hover { background:var(--gold-light); }
+  .btn-outline { background:transparent; color:var(--text-dim); border:1px solid var(--border); }
+  .btn-outline:hover { border-color:var(--gold); color:var(--gold); }
+  .btn-danger { background:var(--red-dim); color:var(--red); border:1px solid rgba(224,112,112,0.2); padding:7px 12px; font-size:11px; }
+  .btn-row { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .divider { height:1px; background:var(--border); margin:14px 0; }
+
+  /* HISTORY */
+  .history-item { display:flex;justify-content:space-between;align-items:flex-start;padding:13px 15px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;gap:12px;animation:fadeIn 0.25s ease; }
+  .hi-left { flex:1;min-width:0; }
+  .hi-sparte { display:inline-block;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;background:var(--gold-dim);color:var(--gold);padding:2px 7px;border-radius:10px;margin-bottom:4px; }
+  .hi-name { font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .hi-detail { font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);margin-top:2px; }
+  .hi-vals { text-align:right;flex-shrink:0; }
+  .hi-val { font-family:'DM Serif Display',serif;font-size:1.15rem;color:var(--gold-light); }
+  .hi-val-label { font-family:'DM Mono',monospace;font-size:8px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase; }
+  .hi-val2 { font-family:'DM Mono',monospace;font-size:11px;color:var(--green);margin-top:3px; }
+  .empty-state { text-align:center;padding:50px 20px;color:var(--text-muted);font-size:14px;line-height:1.8; }
+  .empty-state .es-icon { font-size:36px;margin-bottom:10px;opacity:0.5; }
+
+  /* KRANKEN TABLE */
+  .kranken-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .kranken-table th { text-align:left; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); padding:8px 12px; border-bottom:1px solid var(--border); }
+  .kranken-table td { padding:11px 12px; font-family:'DM Mono',monospace; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .kranken-table tr:last-child td { border-bottom:none; }
+  .kranken-table .k-alter { color:var(--text-dim); font-size:12px; }
+  .kranken-table .k-mp { color:var(--text); font-weight:600; }
+  .kranken-table .k-nmp { color:var(--blue); }
+  .kranken-table .k-prov { color:var(--gold-light); font-weight:700; font-size:14px; }
+  .kranken-table .k-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; background:var(--gold-dim); color:var(--gold); border:1px solid rgba(201,168,76,0.2); }
+
+  @media(max-width:600px){ .card{padding:16px} }
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="header-label">Versicherung</div>
+  <h1>Provisions<em>rechner</em></h1>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('sparten',this)">🏷️ Sparten</button>
+  <button class="tab" onclick="switchTab('multi',this)">👥 Mehrere</button>
+  <button class="tab" onclick="switchTab('verlauf',this)">🕓 Verlauf</button>
+</div>
+
+<!-- ====== SPARTEN ====== -->
+<div id="panel-sparten" class="panel active">
+
+  <div class="card">
+    <div class="card-title"><span class="icon">🏷️</span>Sparte wählen</div>
+    <div class="field">
+      <label>Sparte</label>
+      <select id="sp-select" onchange="onSparteChange()">
+        <option value="">— Bitte wählen —</option>
+        <option value="unfall">🛡️ Unfall</option>
+        <option value="kranken">🏥 Kranken</option>
+        <option value="elementar">🌿 Elementar</option>
+        <option value="kasko">🚗 Kasko</option>
+        <option value="haftpflicht">⚖️ Haftpflicht</option>
+        <option value="lv">❤️ LV (Leben)</option>
+        <option value="lv_einmal">💎 LV Einmal</option>
+      </select>
+    </div>
+    <div id="sp-infobox" class="info-box" style="display:none"></div>
+  </div>
+
+  <div class="card" id="sp-input-card" style="display:none">
+    <div class="card-title">
+      <span class="icon">💶</span>
+      <span id="sp-card-title">Prämie eingeben</span>
+      <span id="sp-badge" class="sparte-badge" style="display:none"></span>
+    </div>
+
+    <div class="field-grid">
+      <!-- Zahlungsweise -->
+      <div class="field full">
+        <label>Zahlungsweise</label>
+        <div class="zw-group">
+          <button class="zw-btn" data-zw="monatlich"   data-factor="12"  onclick="setZW(this)">Monatlich<span class="zw-factor">× 12</span></button>
+          <button class="zw-btn" data-zw="viertelj"    data-factor="4"   onclick="setZW(this)">Vierteljährlich<span class="zw-factor">× 4</span></button>
+          <button class="zw-btn" data-zw="halbjaehrlich" data-factor="2" onclick="setZW(this)">Halbjährlich<span class="zw-factor">× 2</span></button>
+          <button class="zw-btn active" data-zw="jaehrlich" data-factor="1" onclick="setZW(this)">Jährlich<span class="zw-factor">× 1</span></button>
+        </div>
+      </div>
+
+      <!-- Prämie Eingabe -->
+      <div class="field">
+        <label id="sp-praemie-label">Prämie / Jahr</label>
+        <div class="input-wrap">
+          <input type="number" id="sp-brutto" class="has-unit" placeholder="0,00" step="10" min="0" oninput="calcSparte()">
+          <span class="unit">€</span>
+        </div>
+      </div>
+
+      <!-- Jahresprämie (berechnet falls nicht jährlich) -->
+      <div class="field" id="sp-field-jahres" style="display:none">
+        <label>Jahresprämie (errechnet)</label>
+        <div class="input-wrap">
+          <input type="number" id="sp-jahres" class="has-unit" placeholder="—" readonly>
+          <span class="unit">€</span>
+        </div>
+      </div>
+
+      <!-- JNP readonly -->
+      <div class="field" id="sp-field-netto">
+        <label>Jahresnettoprämie (JNP)</label>
+        <div class="input-wrap">
+          <input type="number" id="sp-netto" class="has-unit" placeholder="—" readonly>
+          <span class="unit">€</span>
+        </div>
+      </div>
+
+      <!-- LV Laufzeit -->
+      <div class="field full" id="sp-field-laufzeit" style="display:none">
+        <label>Laufzeit (Jahre)</label>
+        <div class="input-wrap">
+          <input type="number" id="sp-laufzeit" class="has-unit" placeholder="z.B. 25" min="1" max="50" step="1" oninput="calcSparte()">
+          <span class="unit">J</span>
+        </div>
+        <div class="lv-hint" id="sp-lv-hint"></div>
+      </div>
+
+      <div class="field full">
+        <label>Bezeichnung (optional)</label>
+        <input type="text" id="sp-name" placeholder="z.B. Müller Hans">
+      </div>
+    </div>
+  </div>
+
+  <!-- KRANKEN SPECIAL CARD -->
+  <div class="card" id="kranken-card" style="display:none">
+    <div class="card-title">
+      <span class="icon">🏥</span>
+      Kranken — Monatsprämie eingeben
+      <span class="sparte-badge badge-kranken" style="display:inline-flex">Kranken</span>
+    </div>
+    <div class="field-grid">
+      <div class="field full">
+        <label>Bruttomonatsprämie</label>
+        <div class="input-wrap">
+          <input type="number" id="kr-brutto" class="has-unit" placeholder="0,00" step="1" min="0" oninput="calcKranken()">
+          <span class="unit">€</span>
+        </div>
+      </div>
+      <div class="field full">
+        <label>Bezeichnung (optional)</label>
+        <input type="text" id="kr-name" placeholder="z.B. Müller Hans">
+      </div>
+    </div>
+  </div>
+
+  <!-- KRANKEN RESULT -->
+  <div id="kranken-result" style="display:none">
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span>Provisionsübersicht nach Alter</div>
+      <div id="kranken-table"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-gold" onclick="saveKranken()">💾 Speichern</button>
+      <button class="btn btn-outline" onclick="resetKranken()">↺ Zurücksetzen</button>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div id="sp-result" style="display:none">
+    <div class="result-grid" id="sp-result-grid"></div>
+    <div class="card card-breakdown">
+      <div class="card-title"><span class="icon">📋</span>Aufschlüsselung</div>
+      <div id="sp-breakdown"></div>
+    </div>
+    <!-- 10-Jahres Vorschau -->
+    <div class="card card-breakdown" id="sp-10year-card" style="display:none">
+      <div class="card-title"><span class="icon">📅</span>10-Jahres Provisionsvorschau</div>
+      <div id="sp-10year-table"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-gold" onclick="saveSparte()">💾 Speichern</button>
+      <button class="btn btn-outline" onclick="resetSparte()">↺ Zurücksetzen</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== MEHRERE ====== -->
+<div id="panel-multi" class="panel">
+  <div class="card">
+    <div class="card-title"><span class="icon">👥</span>Mehrere Verträge berechnen</div>
+    <div id="multi-list"></div>
+    <button class="btn btn-outline" style="width:100%;margin-top:10px" onclick="addMultiRow()">+ Vertrag hinzufügen</button>
+  </div>
+  <div class="card card-breakdown" id="multi-result-card" style="display:none">
+    <div class="card-title"><span class="icon">📋</span>Gesamtübersicht</div>
+    <div id="multi-table"></div>
+    <div id="multi-summary"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-gold" onclick="saveMulti()">💾 Speichern</button>
+    <button class="btn btn-outline" onclick="resetMulti()">↺ Zurücksetzen</button>
+  </div>
+</div>
+
+<!-- ====== VERLAUF ====== -->
+<div id="panel-verlauf" class="panel">
+  <div class="card">
+    <div class="card-title">
+      <span class="icon">🕓</span>Gespeicherte Berechnungen
+      <button class="btn btn-outline" style="margin-left:auto;padding:6px 10px;font-size:11px" onclick="clearHistory()">Alles löschen</button>
+    </div>
+    <div id="history-list"></div>
+  </div>
+</div>
+
+</div><!-- /app -->
+<script>
+// ============ CONFIG ============
+const SPARTEN = {
+  unfall:      { label:'Unfall',      icon:'🛡️', steuer:4,  abschluss:15,   folge:10,  badge:'badge-unfall' },
+  kranken:     { label:'Kranken',     icon:'🏥', steuer:1,  abschluss:null, folge:null, badge:'badge-kranken', kranken:true },
+  elementar:   { label:'Elementar',   icon:'🌿', steuer:11, abschluss:15,   folge:10,  badge:'badge-elem' },
+  kasko:       { label:'Kasko',       icon:'🚗', steuer:11, abschluss:0,    folge:8.5, badge:'badge-kasko' },
+  haftpflicht: { label:'Haftpflicht', icon:'⚖️', steuer:11, abschluss:0,    folge:7,   badge:'badge-hpf' },
+  lv:          { label:'LV (Leben)',  icon:'❤️', steuer:11, abschluss:'lv', folge:0,   badge:'badge-lv', laufzeit:true },
+  lv_einmal:   { label:'LV Einmal',   icon:'💎', steuer:11, abschluss:2,    folge:0,   badge:'badge-lv' },
+};
+
+const INFOS = {
+  unfall:     'Steuer: <strong>4%</strong> · Abschluss: <strong>15%</strong> (einmalig) · Folge: <strong>10%/Jahr</strong>',
+  kranken:    'Steuer: <strong>1%</strong> · Abschluss: <strong>bis 39 J. → 5 MP</strong> · <strong>40–49 J. → 3 MP</strong> · <strong>ab 50 J. → 1 MP</strong> (MP = Nettomonatsprämie)',
+  elementar:  'Steuer: <strong>11%</strong> · Abschluss: <strong>15%</strong> (einmalig) · Folge: <strong>10%/Jahr</strong>',
+  kasko:      'Steuer: <strong>11%</strong> · Kein Abschluss · Folge: <strong>8,5%/Jahr</strong>',
+  haftpflicht:'Steuer: <strong>11%</strong> · Kein Abschluss · Folge: <strong>7%/Jahr</strong>',
+  lv:         'Steuer: <strong>11%</strong> · Abschluss: <strong>≥ 30 Jahre → 75%</strong> | <strong>&lt; 30 Jahre → 25‰</strong> · Keine Folgeprovision',
+  lv_einmal:  'Steuer: <strong>11%</strong> · Abschluss: <strong>2%</strong> (einmalig) · Keine Folgeprovision',
+};
+
+// Zahlungsweise factor (wie oft pro Jahr gezahlt)
+let zwFactor = 1; // default: jährlich
+
+// ============ UTILS ============
+const fmt  = n => new Intl.NumberFormat('de-AT',{style:'currency',currency:'EUR'}).format(n);
+const fmtN = (n,d=2) => new Intl.NumberFormat('de-AT',{minimumFractionDigits:d,maximumFractionDigits:d}).format(n);
+const nettoCalc = (brutto, stPct) => brutto / (1 + stPct/100);
+
+function lvAbschluss(jnp, laufzeit) {
+  if (laufzeit >= 30) return { prov:jnp*0.75,     regel:'75%' };
+  return              { prov:jnp*25/1000,      regel:'25‰' };
+}
+
+// ============ ZAHLUNGSWEISE ============
+function setZW(btn) {
+  document.querySelectorAll('.zw-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  zwFactor = parseInt(btn.dataset.factor);
+
+  const zw = btn.dataset.zw;
+  const labels = { monatlich:'Prämie / Monat', viertelj:'Prämie / Quartal', halbjaehrlich:'Prämie / Halbjahr', jaehrlich:'Prämie / Jahr' };
+  document.getElementById('sp-praemie-label').textContent = labels[zw];
+
+  // show Jahresprämie field only if not jährlich
+  const showJahres = zwFactor !== 1;
+  document.getElementById('sp-field-jahres').style.display = showJahres ? 'flex' : 'none';
+  // shift netto field: if we show jahres, netto goes on new row (full), else stays in grid
+  const nettoField = document.getElementById('sp-field-netto');
+  if (showJahres) {
+    nettoField.classList.add('full');
+  } else {
+    nettoField.classList.remove('full');
+  }
+
+  calcSparte();
+}
+
+// ============ TABS ============
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+tab).classList.add('active');
+}
+
+// ============ SPARTE ============
+function onSparteChange() {
+  const key = document.getElementById('sp-select').value;
+  const infobox = document.getElementById('sp-infobox');
+  const inputCard = document.getElementById('sp-input-card');
+  const resultDiv = document.getElementById('sp-result');
+
+  resultDiv.style.display = 'none';
+  document.getElementById('kranken-card').style.display = 'none';
+  document.getElementById('kranken-result').style.display = 'none';
+  ['sp-brutto','sp-jahres','sp-netto','sp-laufzeit','sp-name'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+
+  if (!key) { infobox.style.display='none'; inputCard.style.display='none'; return; }
+
+  const s = SPARTEN[key];
+  infobox.innerHTML = INFOS[key];
+  infobox.style.display = 'block';
+
+  if (s.kranken) {
+    inputCard.style.display='none';
+    document.getElementById('kranken-card').style.display='block';
+    document.getElementById('kr-brutto').value='';
+    document.getElementById('kr-name').value='';
+    return;
+  }
+
+  document.getElementById('sp-card-title').textContent = `${s.icon} ${s.label}`;
+  const badge = document.getElementById('sp-badge');
+  badge.textContent = s.label;
+  badge.className = 'sparte-badge ' + s.badge;
+  badge.style.display = 'inline-flex';
+
+  document.getElementById('sp-field-laufzeit').style.display = s.laufzeit ? 'flex' : 'none';
+  document.getElementById('sp-lv-hint').classList.remove('show');
+
+  inputCard.style.display = 'block';
+}
+
+function calcSparte() {
+  const key = document.getElementById('sp-select').value;
+  if (!key) return;
+  const s = SPARTEN[key];
+  if (s.kommt || s.kranken) return;
+
+  const eingabe  = parseFloat(document.getElementById('sp-brutto').value) || 0;
+  const laufzeit = parseInt(document.getElementById('sp-laufzeit')?.value) || 0;
+
+  // Jahresbrutto aus Eingabe × Faktor
+  const jahrBrutto = eingabe * zwFactor;
+  const jnp        = nettoCalc(jahrBrutto, s.steuer);
+  const stBetrag   = jahrBrutto - jnp;
+
+  // Jahresprämie anzeigen (nur wenn nicht jährlich)
+  if (zwFactor !== 1) {
+    document.getElementById('sp-jahres').value = eingabe > 0 ? fmtN(jahrBrutto,2) : '';
+  }
+  document.getElementById('sp-netto').value = eingabe > 0 ? fmtN(jnp,2) : '';
+
+  // LV hint
+  if (s.laufzeit) {
+    const hint = document.getElementById('sp-lv-hint');
+    if (laufzeit > 0) {
+      hint.textContent = laufzeit >= 30
+        ? `→ ${laufzeit} Jahre ≥ 30: Abschluss = 75% der JNP`
+        : `→ ${laufzeit} Jahre < 30: Abschluss = 25‰ der JNP`;
+      hint.classList.add('show');
+    } else {
+      hint.classList.remove('show');
+    }
+  }
+
+  if (eingabe <= 0) { document.getElementById('sp-result').style.display='none'; return; }
+
+  // Calculate provisions
+  let abschluss=0, folge=0, abschlussRegel='', folgeRegel='';
+
+  if (key === 'lv') {
+    if (laufzeit > 0) {
+      const r = lvAbschluss(jnp, laufzeit);
+      abschluss = r.prov; abschlussRegel = r.regel;
+    } else {
+      abschlussRegel = '⚠ Laufzeit eingeben';
+    }
+  } else {
+    abschluss      = jnp * (s.abschluss||0) / 100;
+    folge          = jnp * (s.folge||0) / 100;
+    abschlussRegel = s.abschluss > 0 ? `${fmtN(s.abschluss,1)}%` : '';
+    folgeRegel     = s.folge > 0     ? `${fmtN(s.folge,1)}%` : '';
+  }
+
+  // ---- Result Grid (blaue Felder) ----
+  const rg = document.getElementById('sp-result-grid');
+
+  // Only show cells that have a value
+  let cells = [];
+  if (abschluss > 0) {
+    cells.push(`
+      <div class="result-cell">
+        <div class="rc-label">Abschluss (einmalig)</div>
+        <div class="rc-val">${fmt(abschluss)}</div>
+        ${abschlussRegel ? `<div class="rc-sub">${abschlussRegel}</div>` : ''}
+      </div>`);
+  }
+  if (folge > 0) {
+    cells.push(`
+      <div class="result-cell green-cell">
+        <div class="rc-label">Folge / Jahr</div>
+        <div class="rc-val">${fmt(folge)}</div>
+        ${folgeRegel ? `<div class="rc-sub">${folgeRegel}</div>` : ''}
+      </div>`);
+  }
+  if (abschluss > 0 && folge > 0) {
+    cells.push(`
+      <div class="result-cell purple-cell" style="grid-column:1/-1">
+        <div class="rc-label">Gesamt 1. Jahr</div>
+        <div class="rc-val">${fmt(abschluss+folge)}</div>
+        <div class="rc-sub">Abschluss + Folge</div>
+      </div>`);
+  }
+  // LV no folge: show just abschluss full width
+  if (cells.length === 1 && abschluss > 0 && folge === 0) {
+    cells[0] = cells[0].replace('<div class="result-cell">', '<div class="result-cell" style="grid-column:1/-1">');
+  }
+  if (cells.length === 1 && folge > 0 && abschluss === 0) {
+    cells[0] = cells[0].replace('<div class="result-cell green-cell">', '<div class="result-cell green-cell" style="grid-column:1/-1">');
+  }
+  // LV with missing laufzeit
+  if (key === 'lv' && laufzeit <= 0) {
+    cells = [`<div class="result-cell" style="grid-column:1/-1;opacity:0.5"><div class="rc-label">Abschluss</div><div class="rc-val">—</div><div class="rc-sub">Laufzeit eingeben</div></div>`];
+  }
+
+  rg.innerHTML = cells.join('');
+
+  // ---- Aufschlüsselung ----
+  const zwLabel = document.querySelector('.zw-btn.active')?.textContent?.split('×')[0]?.trim() || 'Jährlich';
+  let bdHtml = '';
+
+  if (zwFactor !== 1) {
+    bdHtml += `<div class="breakdown-row"><span class="key">Prämie (${zwLabel})</span><span class="val">${fmt(eingabe)}</span></div>`;
+    bdHtml += `<div class="breakdown-row"><span class="key">Jahresbrutto (× ${zwFactor})</span><span class="val">${fmt(jahrBrutto)}</span></div>`;
+  } else {
+    bdHtml += `<div class="breakdown-row"><span class="key">Bruttoprämie / Jahr</span><span class="val">${fmt(jahrBrutto)}</span></div>`;
+  }
+
+  bdHtml += `<div class="breakdown-row"><span class="key">− Versicherungssteuer (${fmtN(s.steuer,0)}%)</span><span class="val">${fmt(stBetrag)}</span></div>`;
+  bdHtml += `<div class="breakdown-row hl"><span class="key">= Jahresnettoprämie (JNP)</span><span class="val">${fmt(jnp)}</span></div>`;
+  bdHtml += `<div class="divider"></div>`;
+
+  if (key === 'lv' && laufzeit <= 0) {
+    bdHtml += `<div class="breakdown-row warn"><span class="key">⚠ Bitte Laufzeit eingeben</span><span class="val">—</span></div>`;
+  } else {
+    if (abschluss > 0) bdHtml += `<div class="breakdown-row"><span class="key">Abschluss${abschlussRegel?' ('+abschlussRegel+')':''}</span><span class="val">${fmt(abschluss)}</span></div>`;
+    if (folge > 0)     bdHtml += `<div class="breakdown-row hl2"><span class="key">Folge/Jahr${folgeRegel?' ('+folgeRegel+')':''}</span><span class="val">${fmt(folge)}</span></div>`;
+    if (abschluss > 0 && folge > 0)
+      bdHtml += `<div class="breakdown-row hl3"><span class="key">Gesamt 1. Jahr (Abschluss + Folge)</span><span class="val">${fmt(abschluss+folge)}</span></div>`;
+  }
+
+  document.getElementById('sp-breakdown').innerHTML = bdHtml;
+
+  // ---- 10-Jahres Tabelle ----
+  const tenCard = document.getElementById('sp-10year-card');
+  if (folge > 0 || abschluss > 0) {
+    let tableHtml = `
+      <table class="year-table">
+        <thead>
+          <tr>
+            <th>Jahr</th>
+            ${abschluss > 0 ? '<th>Abschluss</th>' : ''}
+            ${folge > 0     ? '<th>Folge</th>' : ''}
+            <th>Gesamt kumuliert</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    let kumuliert = 0;
+    for (let y = 1; y <= 10; y++) {
+      const a = y === 1 ? abschluss : 0;
+      const f = folge;
+      const jahresTotal = a + f;
+      kumuliert += jahresTotal;
+      tableHtml += `
+        <tr>
+          <td>Jahr ${y}</td>
+          ${abschluss > 0 ? `<td class="money">${a > 0 ? fmt(a) : '—'}</td>` : ''}
+          ${folge > 0     ? `<td class="money-green">${f > 0 ? fmt(f) : '—'}</td>` : ''}
+          <td class="money-purple">${fmt(kumuliert)}</td>
+        </tr>`;
+    }
+
+    tableHtml += `
+        </tbody>
+        <tfoot>
+          <tr class="year-total">
+            <td><strong>10 Jahre</strong></td>
+            ${abschluss > 0 ? `<td>${fmt(abschluss)}</td>` : ''}
+            ${folge > 0     ? `<td>${fmt(folge * 10)}</td>` : ''}
+            <td>${fmt(abschluss + folge * 10)}</td>
+          </tr>
+        </tfoot>
+      </table>`;
+
+    document.getElementById('sp-10year-table').innerHTML = tableHtml;
+    tenCard.style.display = 'block';
+  } else {
+    tenCard.style.display = 'none';
+  }
+
+  document.getElementById('sp-result').style.display = 'block';
+}
+
+function resetSparte() {
+  document.getElementById('sp-select').value = '';
+  document.getElementById('kranken-card').style.display = 'none';
+  document.getElementById('kranken-result').style.display = 'none';
+  // reset ZW to jährlich
+  document.querySelectorAll('.zw-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('[data-zw="jaehrlich"]').classList.add('active');
+  zwFactor = 1;
+  document.getElementById('sp-praemie-label').textContent = 'Prämie / Jahr';
+  document.getElementById('sp-field-jahres').style.display = 'none';
+  document.getElementById('sp-field-netto').classList.remove('full');
+  onSparteChange();
+}
+
+function saveSparte() {
+  const key = document.getElementById('sp-select').value;
+  if (!key) return;
+  const s = SPARTEN[key];
+  const eingabe = parseFloat(document.getElementById('sp-brutto').value)||0;
+  if (!eingabe) { alert('Bitte zuerst eine Prämie eingeben.'); return; }
+
+  const jahrBrutto = eingabe * zwFactor;
+  const jnp        = nettoCalc(jahrBrutto, s.steuer);
+  const laufzeit   = parseInt(document.getElementById('sp-laufzeit')?.value)||0;
+  const name       = document.getElementById('sp-name').value || s.label;
+  const zwLabel    = document.querySelector('.zw-btn.active')?.textContent?.split('×')[0]?.trim() || '';
+
+  let abschluss=0, folge=0;
+  if (key==='lv') { if(laufzeit>0) abschluss=lvAbschluss(jnp,laufzeit).prov; }
+  else { abschluss=jnp*(s.abschluss||0)/100; folge=jnp*(s.folge||0)/100; }
+
+  pushHistory({
+    sparte:s.label, name, abschluss, folge,
+    detail:`${zwLabel} · JNP: ${fmt(jnp)}`
+  });
+  flashBtn(event.target);
+}
+
+// ============ KRANKEN ============
+function calcKranken() {
+  const brutto = parseFloat(document.getElementById('kr-brutto').value) || 0;
+  const resultDiv = document.getElementById('kranken-result');
+
+  if (brutto <= 0) { resultDiv.style.display='none'; return; }
+
+  const nmp = brutto / 1.01; // Nettomonatsprämie (Steuer 1% raus)
+
+  const stufen = [
+    { label:'bis 39 Jahre', range:'≤ 39', faktor:5, color:'var(--green)' },
+    { label:'40 – 49 Jahre', range:'40–49', faktor:3, color:'var(--gold-light)' },
+    { label:'ab 50 Jahre',  range:'≥ 50', faktor:1, color:'var(--text-dim)' },
+  ];
+
+  let html = `
+    <table class="kranken-table">
+      <thead>
+        <tr>
+          <th>Altersgruppe</th>
+          <th>Nettomonatsprämie</th>
+          <th>Faktor</th>
+          <th>Provision</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  stufen.forEach(st => {
+    const prov = nmp * st.faktor;
+    html += `
+      <tr>
+        <td><span class="k-badge">${st.range} J.</span><br><span class="k-alter" style="font-size:11px;margin-top:3px;display:block">${st.label}</span></td>
+        <td class="k-nmp">${fmt(nmp)}</td>
+        <td class="k-mp" style="color:${st.color}">× ${st.faktor} MP</td>
+        <td class="k-prov" style="color:${st.color}">${fmt(prov)}</td>
+      </tr>`;
+  });
+
+  html += `
+      </tbody>
+    </table>
+    <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted)">
+      Bruttomonatsprämie: <strong style="color:var(--text)">${fmt(brutto)}</strong>
+      &nbsp;·&nbsp; NMP (nach 1% Steuer): <strong style="color:var(--blue)">${fmt(nmp)}</strong>
+    </div>`;
+
+  document.getElementById('kranken-table').innerHTML = html;
+  resultDiv.style.display = 'block';
+}
+
+function resetKranken() {
+  document.getElementById('kr-brutto').value = '';
+  document.getElementById('kr-name').value = '';
+  document.getElementById('kranken-result').style.display = 'none';
+}
+
+function saveKranken() {
+  const brutto = parseFloat(document.getElementById('kr-brutto').value)||0;
+  if (!brutto) { alert('Bitte zuerst eine Prämie eingeben.'); return; }
+  const nmp  = brutto / 1.01;
+  const name = document.getElementById('kr-name').value || 'Kranken';
+  pushHistory({
+    sparte:'Kranken', name,
+    abschluss: nmp * 5, // höchster Wert als Referenz
+    folge: 0,
+    detail:`NMP: ${fmt(nmp)} · bis 39J: ${fmt(nmp*5)} · 40-49J: ${fmt(nmp*3)} · ab 50J: ${fmt(nmp*1)}`
+  });
+  flashBtn(event.target);
+}
+
+// ============ MULTI ============
+let multiItems = [];
+
+function addMultiRow() {
+  multiItems.push({ id:Date.now(), sparte:'elementar', brutto:0, laufzeit:0, name:'', zwFactor:1 });
+  renderMulti();
+}
+
+function renderMulti() {
+  const list = document.getElementById('multi-list');
+  list.innerHTML = '';
+  multiItems.forEach((item,i) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:10px';
+    const showLZ = item.sparte === 'lv';
+    const optHtml = Object.entries(SPARTEN).map(([k,v])=>`<option value="${k}" ${k===item.sparte?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+    const zwOpts = [
+      {v:'1',l:'Jährlich'},{v:'2',l:'Halbjährlich'},{v:'4',l:'Vierteljährlich'},{v:'12',l:'Monatlich'}
+    ].map(o=>`<option value="${o.v}" ${String(item.zwFactor)===o.v?'selected':''}>${o.l}</option>`).join('');
+
+    div.innerHTML = `
+      <div class="field-grid">
+        <div class="field">
+          <label>Bezeichnung</label>
+          <input type="text" placeholder="z.B. Müller" value="${item.name}"
+            oninput="multiItems[${i}].name=this.value;calcMulti()">
+        </div>
+        <div class="field">
+          <label>Sparte</label>
+          <select onchange="multiItems[${i}].sparte=this.value;renderMulti()">${optHtml}</select>
+        </div>
+        <div class="field">
+          <label>Prämie (€)</label>
+          <div class="input-wrap">
+            <input type="number" class="has-unit" placeholder="0" value="${item.brutto||''}"
+              oninput="multiItems[${i}].brutto=parseFloat(this.value)||0;calcMulti()">
+            <span class="unit">€</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Zahlungsweise</label>
+          <select onchange="multiItems[${i}].zwFactor=parseInt(this.value);calcMulti()">${zwOpts}</select>
+        </div>
+        ${showLZ ? `
+        <div class="field full">
+          <label>Laufzeit (Jahre)</label>
+          <div class="input-wrap">
+            <input type="number" class="has-unit" placeholder="z.B. 25" value="${item.laufzeit||''}"
+              oninput="multiItems[${i}].laufzeit=parseInt(this.value)||0;calcMulti()">
+            <span class="unit">J</span>
+          </div>
+        </div>` : ''}
+        <div class="field" style="grid-column:1/-1;align-items:flex-start">
+          <button class="btn btn-danger" onclick="removeMulti(${i})">✕ Entfernen</button>
+        </div>
+      </div>`;
+    list.appendChild(div);
+  });
+  calcMulti();
+}
+
+function removeMulti(i) { multiItems.splice(i,1); renderMulti(); }
+
+function calcMulti() {
+  if (!multiItems.length) { document.getElementById('multi-result-card').style.display='none'; return; }
+  document.getElementById('multi-result-card').style.display='block';
+
+  let totalA=0, totalF=0;
+
+  const rows = multiItems.map(item=>{
+    const s=SPARTEN[item.sparte];
+    if (!s||s.kommt||s.kranken||item.brutto<=0) return null;
+    const jahrBrutto = item.brutto * (item.zwFactor||1);
+    const jnp=nettoCalc(jahrBrutto,s.steuer);
+    let a=0,f=0;
+    if (item.sparte==='lv') { if(item.laufzeit>0) a=lvAbschluss(jnp,item.laufzeit).prov; }
+    else { a=jnp*(s.abschluss||0)/100; f=jnp*(s.folge||0)/100; }
+    totalA+=a; totalF+=f;
+    return {item,s,jnp,a,f};
+  }).filter(Boolean);
+
+  document.getElementById('multi-table').innerHTML = rows.map(r=>`
+    <div class="breakdown-row">
+      <span class="key">
+        <span style="font-size:10px;color:var(--gold);font-family:'DM Mono',monospace">${r.s.label}</span>${r.item.name?' · '+r.item.name:''}<br>
+        <span style="font-size:11px;color:var(--text-muted)">JNP: ${fmt(r.jnp)}</span>
+      </span>
+      <span class="val" style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        ${r.a>0?`<span style="color:var(--gold-light)">A: ${fmt(r.a)}</span>`:''}
+        ${r.f>0?`<span style="color:var(--green)">F: ${fmt(r.f)}</span>`:''}
+      </span>
+    </div>`).join('');
+
+  document.getElementById('multi-summary').innerHTML = `
+    <div class="divider"></div>
+    ${totalA>0?`<div class="breakdown-row hl"><span class="key">Gesamt Abschluss</span><span class="val">${fmt(totalA)}</span></div>`:''}
+    ${totalF>0?`<div class="breakdown-row hl2"><span class="key">Gesamt Folge / Jahr</span><span class="val">${fmt(totalF)}</span></div>`:''}
+    ${totalA>0&&totalF>0?`<div class="breakdown-row hl3"><span class="key">Gesamt 1. Jahr</span><span class="val">${fmt(totalA+totalF)}</span></div>`:''}
+    ${totalF>0?`<div class="breakdown-row"><span class="key">Kumuliert 10 Jahre</span><span class="val" style="color:var(--purple)">${fmt(totalA+totalF*10)}</span></div>`:''}`;
+}
+
+function resetMulti() {
+  multiItems=[];
+  document.getElementById('multi-list').innerHTML='';
+  document.getElementById('multi-result-card').style.display='none';
+}
+
+function saveMulti() {
+  let totalA=0,totalF=0;
+  multiItems.forEach(item=>{
+    const s=SPARTEN[item.sparte]; if(!s||s.kommt||s.kranken||!item.brutto) return;
+    const jnp=nettoCalc(item.brutto*(item.zwFactor||1),s.steuer);
+    if(item.sparte==='lv'){if(item.laufzeit>0) totalA+=lvAbschluss(jnp,item.laufzeit).prov;}
+    else{totalA+=jnp*(s.abschluss||0)/100; totalF+=jnp*(s.folge||0)/100;}
+  });
+  pushHistory({
+    sparte:'Multi', name:`${multiItems.length} Verträge`,
+    abschluss:totalA, folge:totalF,
+    detail: multiItems.map(r=>SPARTEN[r.sparte]?.label||'?').join(', ')
+  });
+  flashBtn(event.target);
+}
+
+// ============ HISTORY ============
+function pushHistory(entry) {
+  let hist = JSON.parse(localStorage.getItem('prov_hist3')||'[]');
+  hist.unshift({ ...entry, id:Date.now(), time:new Date().toLocaleString('de-AT') });
+  if(hist.length>80) hist.pop();
+  localStorage.setItem('prov_hist3', JSON.stringify(hist));
+  renderHistory();
+}
+
+function renderHistory() {
+  const hist = JSON.parse(localStorage.getItem('prov_hist3')||'[]');
+  const list = document.getElementById('history-list');
+  if (!hist.length) {
+    list.innerHTML=`<div class="empty-state"><div class="es-icon">📂</div>Noch keine gespeicherten Berechnungen.<br>Berechne eine Provision und drücke „Speichern".</div>`;
+    return;
+  }
+  list.innerHTML = hist.map(h=>`
+    <div class="history-item">
+      <div class="hi-left">
+        <div class="hi-sparte">${h.sparte}</div>
+        <div class="hi-name">${h.name}</div>
+        <div class="hi-detail">${h.detail||''} · ${h.time}</div>
+      </div>
+      <div class="hi-vals">
+        ${h.abschluss>0?`<div class="hi-val">${fmt(h.abschluss)}</div><div class="hi-val-label">Abschluss</div>`:''}
+        ${h.folge>0?`<div class="hi-val2">${fmt(h.folge)}/Jahr</div>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function clearHistory() {
+  if(confirm('Wirklich den gesamten Verlauf löschen?')) {
+    localStorage.removeItem('prov_hist3');
+    renderHistory();
+  }
+}
+
+function flashBtn(btn) {
+  const orig=btn.textContent;
+  btn.textContent='✓ Gespeichert!';
+  btn.style.background='var(--green)';
+  btn.style.color='#0f0e0c';
+  setTimeout(()=>{btn.textContent=orig;btn.style.background='';btn.style.color='';},1500);
+}
+
+// ============ INIT ============
+addMultiRow();
+addMultiRow();
+renderHistory();
+</script>
+</body>
+</html>
